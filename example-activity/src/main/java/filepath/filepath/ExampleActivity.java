@@ -1,14 +1,16 @@
 package filepath.filepath;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import net.sf.taverna.t2.invocation.InvocationContext;
 import net.sf.taverna.t2.reference.ExternalReferenceSPI;
+import net.sf.taverna.t2.reference.Identified;
 import net.sf.taverna.t2.reference.ReferenceService;
+import net.sf.taverna.t2.reference.ReferenceSet;
 import net.sf.taverna.t2.reference.T2Reference;
 import net.sf.taverna.t2.reference.impl.external.file.FileReference;
 import net.sf.taverna.t2.reference.impl.external.http.HttpReference;
@@ -101,19 +103,30 @@ public class ExampleActivity extends
 				ReferenceService referenceService = context
 						.getReferenceService();
 				// Resolve inputs 				
-				String firstInput = (String) referenceService.renderIdentifier(inputs.get(IN_FIRST_INPUT), 
-						String.class, context);
 				
-				// Support our configuration-dependendent input
-				boolean optionalPorts = configBean.getExampleString().equals("specialCase"); 
 				
-				List<byte[]> special = null;
-				// We'll also allow IN_EXTRA_DATA to be optionally not provided
-				if (optionalPorts && inputs.containsKey(IN_EXTRA_DATA)) {
-					// Resolve as a list of byte[]
-					special = (List<byte[]>) referenceService.renderIdentifier(
-							inputs.get(IN_EXTRA_DATA), byte[].class, context);
+				String url = null;
+				String file = null;
+				T2Reference inputRef = inputs.get(IN_FIRST_INPUT);
+				Identified identified = referenceService.resolveIdentifier(inputRef, null, context);
+				if (identified instanceof ReferenceSet) {
+					ReferenceSet referenceSet = (ReferenceSet) identified;
+					Set<ExternalReferenceSPI> externalReferences = referenceSet
+							.getExternalReferences();
+					for (ExternalReferenceSPI externalReference : externalReferences) {
+						if (externalReference instanceof HttpReference) {
+							HttpReference httpReference = (HttpReference) externalReference;
+							url = httpReference.getHttpUrlString();
+						}
+						if (externalReference instanceof FileReference) {
+							FileReference fileReference = (FileReference) externalReference;
+							file = fileReference.getFilePath();
+						}
+					}
 				}
+				
+				
+				
 				
 
 				// TODO: Do the actual service invocation
@@ -128,7 +141,18 @@ public class ExampleActivity extends
 
 				// Register outputs
 				Map<String, T2Reference> outputs = new HashMap<String, T2Reference>();
-				String simpleValue = "simple";
+				
+				String simpleValue;
+				if (file != null) {
+					simpleValue = "The file is " + file;
+					// TODO: Use the file
+				} else if (url != null) {
+					simpleValue = "The URL is " + url;
+				} else {
+					callback.fail("No valid reference found, must be URL or File");
+					return;
+				}
+				
 				T2Reference simpleRef = referenceService.register(simpleValue, 0, true, context);
 				outputs.put(OUT_SIMPLE_OUTPUT, simpleRef);
 
@@ -139,14 +163,6 @@ public class ExampleActivity extends
 				T2Reference moreRef = referenceService.register(moreValues, 1, true, context);
 				outputs.put(OUT_MORE_OUTPUTS, moreRef);
 
-				if (optionalPorts) {
-					// Populate our optional output port					
-					// NOTE: Need to return output values for all defined output ports
-					String report = "Everything OK";
-					outputs.put(OUT_REPORT, referenceService.register(report,
-							0, true, context));
-				}
-				
 				// return map of output data, with empty index array as this is
 				// the only and final result (this index parameter is used if
 				// pipelining output)
