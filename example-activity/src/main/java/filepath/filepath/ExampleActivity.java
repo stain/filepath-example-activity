@@ -1,10 +1,15 @@
 package filepath.filepath;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import org.apache.commons.io.FileUtils;
+import org.aspectj.util.FileUtil;
 
 import net.sf.taverna.t2.invocation.InvocationContext;
 import net.sf.taverna.t2.reference.ExternalReferenceSPI;
@@ -28,10 +33,8 @@ public class ExampleActivity extends
 	 * would not apply if port names are looked up dynamically from the service
 	 * operation, like done for WSDL services.
 	 */
-	private static final String IN_FIRST_INPUT = "firstInput";
-	private static final String IN_EXTRA_DATA = "extraData";
-	private static final String OUT_MORE_OUTPUTS = "moreOutputs";
-	private static final String OUT_SIMPLE_OUTPUT = "simpleOutput";
+	private static final String IN_DATA = "data";
+	private static final String OUT_URL = "url";
 	private static final String OUT_REPORT = "report";
 	
 	private ExampleActivityConfigurationBean configBean;
@@ -73,19 +76,10 @@ public class ExampleActivity extends
 		expectedReferences.add(HttpReference.class);
 		expectedReferences.add(FileReference.class);
 		
-		addInput(IN_FIRST_INPUT, 0, false, expectedReferences, null);
-
-		// Optional ports depending on configuration
-		if (configBean.getExampleString().equals("specialCase")) {
-			// depth 1, ie. list of binary byte[] arrays
-			addInput(IN_EXTRA_DATA, 1, true, null, byte[].class);
-			addOutput(OUT_REPORT, 0);
-		}
+		addInput(IN_DATA, 0, false, expectedReferences, null);
 		
-		// Single value output port (depth 0)
-		addOutput(OUT_SIMPLE_OUTPUT, 0);
-		// Output port with list of values (depth 1)
-		addOutput(OUT_MORE_OUTPUTS, 1);
+		addOutput(OUT_REPORT, 0);
+		addOutput(OUT_URL, 0);
 
 	}
 	
@@ -107,7 +101,7 @@ public class ExampleActivity extends
 				
 				String url = null;
 				String file = null;
-				T2Reference inputRef = inputs.get(IN_FIRST_INPUT);
+				T2Reference inputRef = inputs.get(IN_DATA);
 				Identified identified = referenceService.resolveIdentifier(inputRef, null, context);
 				if (identified instanceof ReferenceSet) {
 					ReferenceSet referenceSet = (ReferenceSet) identified;
@@ -128,41 +122,48 @@ public class ExampleActivity extends
 				
 				
 				
-
-				// TODO: Do the actual service invocation
-//				try {
-//					results = this.service.invoke(firstInput, special)
-//				} catch (ServiceException ex) {
-//					callback.fail("Could not invoke Example service " + configBean.getExampleUri(),
-//							ex);
-//					// Make sure we don't call callback.receiveResult later 
-//					return;
-//				}
-
-				// Register outputs
-				Map<String, T2Reference> outputs = new HashMap<String, T2Reference>();
-				
-				String simpleValue;
+				String report;
 				if (file != null) {
-					simpleValue = "The file is " + file;
+					report = "The file is " + file;
 					// TODO: Use the file
+					url = new File(file).toURI().toASCIIString();
 				} else if (url != null) {
-					simpleValue = "The URL is " + url;
+					report = "The URL is " + url;
 				} else {
-					callback.fail("No valid reference found, must be URL or File");
-					return;
+					// In case we require a File, give up now
+//					callback.fail("No valid reference found, must be URL or File");
+//					return;
+
+					
+					// or.. make a file of the given content  (or just get the content directly as a String or byte)
+					byte[] bytes = (byte[]) referenceService.renderIdentifier(inputRef, byte[].class, context);
+					// FIXME: Use externalReference.openConnection(context) instead to save
+					// memory
+					File tempFile;
+					try {
+						tempFile = File.createTempFile("taverna", "tmp");
+						FileUtils.writeByteArrayToFile(tempFile, bytes);
+					} catch (IOException e) {
+						callback.fail("Can't create temporary file");
+						return;
+					}
+					tempFile.deleteOnExit();
+										
+					report = "The temporary file is " + tempFile.getAbsolutePath();
+					url = tempFile.toURI().toASCIIString();
+					
 				}
 				
-				T2Reference simpleRef = referenceService.register(simpleValue, 0, true, context);
-				outputs.put(OUT_SIMPLE_OUTPUT, simpleRef);
+				
+				
+				// Register outputs
+				T2Reference reportRef = referenceService.register(report, 0, true, context);
+				T2Reference urlRef = referenceService.register(url, 0, true, context);
 
-				// For list outputs, only need to register the top level list
-				List<String> moreValues = new ArrayList<String>();
-				moreValues.add("Value 1");
-				moreValues.add("Value 2");
-				T2Reference moreRef = referenceService.register(moreValues, 1, true, context);
-				outputs.put(OUT_MORE_OUTPUTS, moreRef);
-
+				Map<String, T2Reference> outputs = new HashMap<String, T2Reference>();				
+				outputs.put(OUT_REPORT, reportRef);
+				
+				outputs.put(OUT_URL, urlRef);
 				// return map of output data, with empty index array as this is
 				// the only and final result (this index parameter is used if
 				// pipelining output)
