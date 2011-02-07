@@ -21,5 +21,10 @@
 			<version>${t2.activities.version}</version>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<groupId>net.sf.taverna.t2.core</groupId>
+			<artifactId>reference-core-extensions</artifactId>
+			<version>${t2.core.version}</version>
+		</dependency>
 	</dependencies>
 </project>

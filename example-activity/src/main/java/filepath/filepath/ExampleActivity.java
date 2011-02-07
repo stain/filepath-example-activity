@@ -1,13 +1,17 @@
 package filepath.filepath;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import net.sf.taverna.t2.invocation.InvocationContext;
+import net.sf.taverna.t2.reference.ExternalReferenceSPI;
 import net.sf.taverna.t2.reference.ReferenceService;
 import net.sf.taverna.t2.reference.T2Reference;
+import net.sf.taverna.t2.reference.impl.external.file.FileReference;
+import net.sf.taverna.t2.reference.impl.external.http.HttpReference;
 import net.sf.taverna.t2.workflowmodel.processor.activity.AbstractAsynchronousActivity;
 import net.sf.taverna.t2.workflowmodel.processor.activity.ActivityConfigurationException;
 import net.sf.taverna.t2.workflowmodel.processor.activity.AsynchronousActivity;
@@ -62,8 +66,12 @@ public class ExampleActivity extends
 
 		// FIXME: Replace with your input and output port definitions
 		
-		// Hard coded input port, expecting a single String
-		addInput(IN_FIRST_INPUT, 0, true, null, String.class);
+		// Expects File or HTTP Reference
+		List<Class<? extends ExternalReferenceSPI>> expectedReferences = new ArrayList<Class<? extends ExternalReferenceSPI>>();
+		expectedReferences.add(HttpReference.class);
+		expectedReferences.add(FileReference.class);
+		
+		addInput(IN_FIRST_INPUT, 0, false, expectedReferences, null);
 
 		// Optional ports depending on configuration
 		if (configBean.getExampleString().equals("specialCase")) {
